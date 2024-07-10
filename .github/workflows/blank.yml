@@ -1,51 +1,59 @@
-name: Release Workflow
+name: CI
 
 on:
   push:
-    branches: [ "output" ]
+    tags:
+    - '*'
 
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  release_and_tag:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
     runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
+    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+    - uses: actions/checkout@v2
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v2
-        with:
-          node-version: '14'
+    - name: Setup Node
+      uses: actions/setup-node@v1
+      with:
+          node-version: '10.x'
 
-      - name: Install dependencies
-        run: npm install @vercel/ncc
+    - name: Cache multiple paths
+      uses: actions/cache@v2
+      with:
+        path: |
+          ~/cache
+          !~/cache/exclude
+          **/node_modules
+        key: ${{ runner.os }}-${{ hashFiles('**/lockfiles') }}
 
-      - name: Build
-        run: npx ncc build
+    - name: Install Dependencies
+      run: ./scripts/update-dependencies
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.sha }}  # 使用 commit SHA 作为 tag 名称
-          release_name: Release ${{ github.sha }}
-          draft: false
-          prerelease: false
+    - name: Build Static
+      run: ./scripts/build-static -s
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v2
-        with:
-          name: release-artifact
-          path: ./dist  # 指定要上传的文件或文件夹路径
-
-      - name: Publish Release Asset
-        id: publish_release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./data.json  # 发布的文件路径和名称
-          asset_name: latest.zip  # 发布文件的名称，可以自定义
-          asset_content_type: application/zip
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false
+    - name: Upload Release Asset
+      id: upload-release-asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
+        asset_path: dist/static/master-dev.tar.gz
+        asset_name: ${{ github.ref }}.tar.gz
+        asset_content_type: application/gzip
