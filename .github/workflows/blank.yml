@@ -1,33 +1,26 @@
-name: Generate Release with All Files
+name: Release Workflow
 
 on:
   push:
-    branches:
-      - output
+    branches: [ "output" ]
 
 jobs:
-  generate-release:
-    name: Generate Release with All Files
+  release_and_tag:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Set up Git user for tagging
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-
-      - name: Create Tag
-        run: git tag latest ${{ github.sha }}
-        if: success()
-
-      - name: Push Tag
-        uses: ad-m/github-push-action@master
-        if: success()
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          tags: latest
+          node-version: '14'
+
+      - name: Install dependencies
+        run: npm install @vercel/ncc
+
+      - name: Build
+        run: npx ncc build
 
       - name: Create Release
         id: create_release
@@ -35,18 +28,24 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: latest
+          tag_name: ${{ github.sha }}  # 使用 commit SHA 作为 tag 名称
           release_name: Release ${{ github.sha }}
           draft: false
           prerelease: false
 
-      - name: Upload All Files
-        id: upload-release-assets
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: release-artifact
+          path: ./dist  # 指定要上传的文件或文件夹路径
+
+      - name: Publish Release Asset
+        id: publish_release
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./data.json
-          asset_name: all_files.zip  # Name of the release asset
+          asset_path: ./data.json  # 发布的文件路径和名称
+          asset_name: latest.zip  # 发布文件的名称，可以自定义
           asset_content_type: application/zip
