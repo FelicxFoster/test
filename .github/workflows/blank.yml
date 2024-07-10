@@ -3,7 +3,7 @@ name: Release Workflow
 on:
   push:
     branches:
-      - output
+      - output  # 这里根据你的默认分支设置调整
 
 jobs:
   release_and_tag:
@@ -18,10 +18,10 @@ jobs:
           node-version: '14'
 
       - name: Install dependencies
-        run: npm install @vercel/ncc -g
+        run: npm install @vercel/ncc
 
       - name: Build
-        run: ncc build
+        run: npx ncc build
 
       - name: Create Release
         id: create_release
@@ -29,7 +29,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: latest
+          tag_name: ${{ github.sha }}  # 使用 commit SHA 作为 tag 名称
           release_name: Release ${{ github.sha }}
           draft: false
           prerelease: false
@@ -40,13 +40,13 @@ jobs:
           name: release-artifact
           path: ./dist  # 指定要上传的文件或文件夹路径
 
-      - name: Publish Release
+      - name: Publish Release Asset
         id: publish_release
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist  # 发布的文件或文件夹路径
+          asset_path: ./dist/latest.zip  # 发布的文件路径和名称
           asset_name: latest.zip  # 发布文件的名称，可以自定义
           asset_content_type: application/zip
